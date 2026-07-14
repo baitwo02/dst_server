@@ -10,7 +10,8 @@
 
 ```text
 .
-├── Containerfile              # 多阶段构建镜像
+├── Containerfile              # 多阶段构建完整镜像
+├── Containerfile.assets       # 基于现有镜像刷新 preset 和脚本
 ├── Makefile                   # 构建、启动、停止和日志管理
 ├── scripts/
 │   ├── start-dst              # 初始化配置并启动 shard
@@ -35,7 +36,7 @@ Containerfile 使用多阶段构建：
 1. **builder**：使用 SteamCMD 下载 DST Dedicated Server；
 2. **runtime**：仅复制 DST 本体，并安装必要运行依赖和 Lua 5.4。
 
-运行镜像不得包含 SteamCMD，并使用非 root 用户启动。DST 本体通过重新构建镜像更新，不在容器启动时自动更新。
+运行镜像不得包含 SteamCMD，并使用非 root 用户启动。DST 本体通过重新构建完整镜像更新；仅修改 preset、模板或脚本时，可基于现有 runtime 镜像刷新资源层，不重新执行 SteamCMD。
 
 ## 启动流程
 

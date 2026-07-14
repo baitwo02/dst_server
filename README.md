@@ -120,12 +120,14 @@ extra 中的同名 Workshop key 会覆盖镜像 preset。不要直接修改生�
 make restart
 ```
 
-修改发行版 preset：
+修改发行版 preset、模板或启动脚本：
 
 ```bash
-make build
+make build-assets
 make restart
 ```
+
+`build-assets` 基于现有 runtime 镜像刷新小型配置层，不会执行 SteamCMD。
 
 更新 DST 服务端本体：
 
@@ -156,8 +158,9 @@ make clean-data
 
 ```text
 make init          初始化本地数据
-make build         使用缓存构建镜像
-make rebuild       无缓存构建镜像
+make build         使用缓存构建完整镜像
+make build-assets  不执行 SteamCMD，仅刷新运行时配置
+make rebuild       无缓存构建完整镜像
 make up            启动 Master 和 Caves
 make down          删除容器并保留数据
 make restart       重建两个容器

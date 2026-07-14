@@ -58,6 +58,10 @@ COPY --from=builder --chown=dst:dst /opt/dst /opt/dst
 # 保留原始 mods，以便挂载空的持久化目录后进行初始化。
 RUN cp -a /opt/dst/mods /opt/dst-default-mods
 
+# 资源摘要变化时只重建配置层，不重新下载 DST 本体。
+ARG RUNTIME_ASSETS_DIGEST=unknown
+LABEL org.dst-distribution.assets-digest="${RUNTIME_ASSETS_DIGEST}"
+
 COPY --chown=dst:dst preset /opt/dst-preset
 COPY --chown=dst:dst config-templates /opt/dst-config-templates
 COPY scripts/start-dst /usr/local/bin/start-dst
