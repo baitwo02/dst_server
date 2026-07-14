@@ -10,8 +10,7 @@
 
 ```text
 .
-├── Containerfile              # 多阶段构建完整镜像
-├── Containerfile.assets       # 基于现有镜像刷新 preset 和脚本
+├── Containerfile              # 多阶段构建镜像
 ├── Makefile                   # 构建、启动、停止和日志管理
 ├── scripts/
 │   ├── start-dst              # 初始化配置并启动 shard
@@ -36,7 +35,7 @@ Containerfile 使用多阶段构建：
 1. **builder**：使用 SteamCMD 下载 DST Dedicated Server；
 2. **runtime**：仅复制 DST 本体，并安装必要运行依赖和 Lua 5.4。
 
-运行镜像不得包含 SteamCMD，并使用非 root 用户启动。DST 本体通过重新构建完整镜像更新；仅修改 preset、模板或脚本时，可基于现有 runtime 镜像刷新资源层，不重新执行 SteamCMD。
+运行镜像不得包含 SteamCMD，并使用非 root 用户启动。DST 本体通过重新构建镜像更新，不在容器启动时自动更新。镜像内保留默认 preset；Makefile 启动时将宿主机 `preset/` 只读挂载到同一路径，便于直接更新配置。
 
 ## 启动流程
 
@@ -54,7 +53,7 @@ Containerfile 使用多阶段构建：
 ## 关键约束
 
 - extra 文件是可选的，不得由脚本自动创建；文件存在即表示启用用户扩展。
-- 没有 extra 文件时直接使用镜像内置 preset。
+- 没有 extra 文件时直接使用发行版 preset；Makefile 部署时以宿主机挂载版本为准，直接运行镜像时使用内置版本。
 - 生成后的 shard `modoverrides.lua` 会在启动时重写，用户应修改 `data/user-mods` 下的 extra 文件。
 - `cluster_token.txt` 必须由用户提供；缺失时应清晰报错并退出。
 - 默认模板只能初始化缺失配置，不得覆盖已有用户配置。

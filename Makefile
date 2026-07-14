@@ -1,7 +1,6 @@
 RUNTIME ?= podman
 
 IMAGE ?= dst-distribution:latest
-ASSETS_IMAGE ?= dst-distribution:assets
 CONTAINER_MASTER ?= dst-master
 CONTAINER_CAVES ?= dst-caves
 
@@ -9,6 +8,7 @@ DATA_DIR ?= ./data
 KLEI_DIR ?= $(DATA_DIR)/DoNotStarveTogether
 USER_MODS_DIR ?= $(DATA_DIR)/user-mods
 MOD_CACHE_DIR ?= $(DATA_DIR)/mod-cache
+PRESET_DIR ?= ./preset
 
 CLUSTER ?= Cluster_1
 
@@ -18,14 +18,13 @@ MASTER_SHARD_PORT ?= 12346
 CAVES_SHARD_PORT ?= 12347
 
 CONTAINERFILE ?= Containerfile
-ASSETS_CONTAINERFILE ?= Containerfile.assets
 CONFIG_TEMPLATE_DIR ?= ./config-templates
-RUNTIME_ASSETS_DIGEST ?= $(shell find preset config-templates scripts -type f -exec sha256sum {} + | sort | sha256sum | cut -d ' ' -f 1)
 
 # 将容器内 dst 用户映射为当前 rootless Podman 用户。
 USERNS ?= keep-id:uid=10001,gid=10001
 # Master 与 Caves 共享这些挂载，因此使用共享 SELinux 标签。
 VOLUME_SUFFIX ?= :z
+PRESET_VOLUME_SUFFIX ?= :ro,z
 
 .PHONY: help
 help:
@@ -34,7 +33,6 @@ help:
 	@echo "Common targets:"
 	@echo "  make init             Initialize local data files and directories"
 	@echo "  make build            Build image"
-	@echo "  make build-assets     Refresh preset and scripts without SteamCMD"
 	@echo "  make rebuild          Rebuild image without cache"
 	@echo "  make up               Start Master and Caves"
 	@echo "  make up-master        Start Master only"
@@ -55,9 +53,10 @@ help:
 	@echo "  IMAGE=$(IMAGE)"
 	@echo "  CLUSTER=$(CLUSTER)"
 	@echo "  DATA_DIR=$(DATA_DIR)"
+	@echo "  PRESET_DIR=$(PRESET_DIR)"
 	@echo "  USERNS=$(USERNS)"
 	@echo "  VOLUME_SUFFIX=$(VOLUME_SUFFIX)"
-	@echo "  RUNTIME_ASSETS_DIGEST=$(RUNTIME_ASSETS_DIGEST)"
+	@echo "  PRESET_VOLUME_SUFFIX=$(PRESET_VOLUME_SUFFIX)"
 
 .PHONY: init
 init:
@@ -95,26 +94,11 @@ init:
 
 .PHONY: build
 build:
-	$(RUNTIME) build \
-		--build-arg RUNTIME_ASSETS_DIGEST="$(RUNTIME_ASSETS_DIGEST)" \
-		-t "$(IMAGE)" \
-		-f "$(CONTAINERFILE)" .
-
-.PHONY: build-assets
-build-assets:
-	$(RUNTIME) build --no-cache \
-		--build-arg BASE_IMAGE="$(IMAGE)" \
-		--build-arg RUNTIME_ASSETS_DIGEST="$(RUNTIME_ASSETS_DIGEST)" \
-		-t "$(ASSETS_IMAGE)" \
-		-f "$(ASSETS_CONTAINERFILE)" .
-	$(RUNTIME) tag "$(ASSETS_IMAGE)" "$(IMAGE)"
+	$(RUNTIME) build -t "$(IMAGE)" -f "$(CONTAINERFILE)" .
 
 .PHONY: rebuild
 rebuild:
-	$(RUNTIME) build --no-cache \
-		--build-arg RUNTIME_ASSETS_DIGEST="$(RUNTIME_ASSETS_DIGEST)" \
-		-t "$(IMAGE)" \
-		-f "$(CONTAINERFILE)" .
+	$(RUNTIME) build --no-cache -t "$(IMAGE)" -f "$(CONTAINERFILE)" .
 
 .PHONY: check-token
 check-token:
@@ -141,6 +125,7 @@ up-master: check-token
 		-v "$(KLEI_DIR):/data/DoNotStarveTogether$(VOLUME_SUFFIX)" \
 		-v "$(USER_MODS_DIR):/data/user-mods$(VOLUME_SUFFIX)" \
 		-v "$(MOD_CACHE_DIR):/opt/dst/mods$(VOLUME_SUFFIX)" \
+		-v "$(PRESET_DIR):/opt/dst-preset$(PRESET_VOLUME_SUFFIX)" \
 		-e DST_CLUSTER="$(CLUSTER)" \
 		-e DST_SHARD="Master" \
 		"$(IMAGE)"
@@ -156,6 +141,7 @@ up-caves: check-token
 		-v "$(KLEI_DIR):/data/DoNotStarveTogether$(VOLUME_SUFFIX)" \
 		-v "$(USER_MODS_DIR):/data/user-mods$(VOLUME_SUFFIX)" \
 		-v "$(MOD_CACHE_DIR):/opt/dst/mods$(VOLUME_SUFFIX)" \
+		-v "$(PRESET_DIR):/opt/dst-preset$(PRESET_VOLUME_SUFFIX)" \
 		-e DST_CLUSTER="$(CLUSTER)" \
 		-e DST_SHARD="Caves" \
 		"$(IMAGE)"

@@ -8,6 +8,7 @@
 - 使用非 root 用户运行服务端；
 - 自动初始化 cluster 和 shard 配置；
 - 存档、配置、token 和 Mod 缓存保存在宿主机 `data/`；
+- `preset/` 默认以只读 volume 挂载，修改后无需重建镜像；
 - 支持通过 extra 文件追加或覆盖 Mod 配置；
 - Master 和 Caves 默认共享 Mod 缓存。
 
@@ -19,7 +20,7 @@
 | Show Me（中文） | `2287303119` |
 | 防卡两招_新（维护版本） | `3044756151` |
 
-这些 Mod 在 Master 和 Caves 中默认开启，并使用各自的默认配置。
+这些 Mod 在 Master 和 Caves 中默认开启，并使用各自的默认配置。Makefile 会将宿主机 `preset/` 只读挂载到 `/opt/dst-preset`；镜像内仍保留一份 preset 作为直接运行镜像时的默认值。
 
 ## 快速开始
 
@@ -110,7 +111,7 @@ return {
 make restart
 ```
 
-extra 中的同名 Workshop key 会覆盖镜像 preset。不要直接修改生成后的 shard `modoverrides.lua`，它会在下次启动时重写。
+extra 中的同名 Workshop key 会覆盖发行版 preset。不要直接修改生成后的 shard `modoverrides.lua`，它会在下次启动时重写。
 
 ## 更新
 
@@ -120,14 +121,18 @@ extra 中的同名 Workshop key 会覆盖镜像 preset。不要直接修改生�
 make restart
 ```
 
-修改发行版 preset、模板或启动脚本：
+修改发行版 `preset/`：
 
 ```bash
-make build-assets
 make restart
 ```
 
-`build-assets` 基于现有 runtime 镜像刷新小型配置层，不会执行 SteamCMD。
+修改镜像内的模板、启动脚本或其他运行时文件：
+
+```bash
+make build
+make restart
+```
 
 更新 DST 服务端本体：
 
@@ -158,9 +163,8 @@ make clean-data
 
 ```text
 make init          初始化本地数据
-make build         使用缓存构建完整镜像
-make build-assets  不执行 SteamCMD，仅刷新运行时配置
-make rebuild       无缓存构建完整镜像
+make build         使用缓存构建镜像
+make rebuild       无缓存构建镜像
 make up            启动 Master 和 Caves
 make down          删除容器并保留数据
 make restart       重建两个容器
