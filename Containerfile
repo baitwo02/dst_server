@@ -58,7 +58,6 @@ COPY --from=builder --chown=dst:dst /opt/dst /opt/dst
 # 保留原始 mods，以便挂载空的持久化目录后进行初始化。
 RUN cp -a /opt/dst/mods /opt/dst-default-mods
 
-COPY --chown=dst:dst preset /opt/dst-preset
 COPY --chown=dst:dst config-templates /opt/dst-config-templates
 COPY scripts/start-dst /usr/local/bin/start-dst
 COPY scripts/merge-modoverrides.lua /usr/local/bin/merge-modoverrides.lua

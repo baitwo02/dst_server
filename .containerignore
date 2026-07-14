@@ -2,6 +2,7 @@
 .gitignore
 AGENTS.md
 data
+preset
 README.md
 
 .env

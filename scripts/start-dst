@@ -33,6 +33,14 @@ case "${DST_SHARD}" in
     ;;
 esac
 
+for preset_file in "${PRESET_MODS_FILE}" "${PRESET_OVERRIDES_FILE}"; do
+  if [ ! -f "${preset_file}" ]; then
+    echo "ERROR: missing preset file: ${preset_file}" >&2
+    echo "Mount the host preset directory at ${DST_PRESET_DIR}." >&2
+    exit 1
+  fi
+done
+
 mkdir -p \
   "${DST_MODS_DIR}" \
   "${USER_MODS_DIR}/Master" \

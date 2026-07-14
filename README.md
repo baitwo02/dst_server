@@ -1,6 +1,6 @@
 # DST Dedicated Server Distribution
 
-基于 Podman 和 Containerfile 的《Don't Starve Together》Dedicated Server 发行版镜像。镜像内置推荐 Mod preset，普通用户只需提供 cluster token 即可启动 Master 和 Caves。
+基于 Podman 和 Containerfile 的《Don't Starve Together》Dedicated Server 发行版。仓库提供推荐 Mod preset，普通用户只需提供 cluster token 即可启动 Master 和 Caves。
 
 ## 特性
 
@@ -20,7 +20,7 @@
 | Show Me（中文） | `2287303119` |
 | 防卡两招_新（维护版本） | `3044756151` |
 
-这些 Mod 在 Master 和 Caves 中默认开启，并使用各自的默认配置。Makefile 会将宿主机 `preset/` 只读挂载到 `/opt/dst-preset`；镜像内仍保留一份 preset 作为直接运行镜像时的默认值。
+这些 Mod 在 Master 和 Caves 中默认开启，并使用各自的默认配置。Makefile 会将宿主机 `preset/` 只读挂载到 `/opt/dst-preset`。运行镜像时必须提供该挂载。
 
 ## 快速开始
 

@@ -111,11 +111,23 @@ check-token:
 		exit 1; \
 	fi
 
+.PHONY: check-preset
+check-preset:
+	@for file in \
+		"$(PRESET_DIR)/mods.lua" \
+		"$(PRESET_DIR)/Master/modoverrides.lua" \
+		"$(PRESET_DIR)/Caves/modoverrides.lua"; do \
+		if [ ! -f "$$file" ]; then \
+			echo "ERROR: missing preset file: $$file"; \
+			exit 1; \
+		fi; \
+	done
+
 .PHONY: up
 up: up-master up-caves
 
 .PHONY: up-master
-up-master: check-token
+up-master: check-token check-preset
 	@$(RUNTIME) rm -f "$(CONTAINER_MASTER)" >/dev/null 2>&1 || true
 	$(RUNTIME) run -d \
 		--name "$(CONTAINER_MASTER)" \
@@ -131,7 +143,7 @@ up-master: check-token
 		"$(IMAGE)"
 
 .PHONY: up-caves
-up-caves: check-token
+up-caves: check-token check-preset
 	@$(RUNTIME) rm -f "$(CONTAINER_CAVES)" >/dev/null 2>&1 || true
 	$(RUNTIME) run -d \
 		--name "$(CONTAINER_CAVES)" \
