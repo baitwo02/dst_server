@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DST_DIR="${DST_DIR:-/opt/dst}"
+DST_DATA_DIR="${DST_DATA_DIR:-/data}"
+DST_CLUSTER="${DST_CLUSTER:-Cluster_1}"
+DST_SHARD="${DST_SHARD:-Master}"
+
+DST_MODS_DIR="${DST_DIR}/mods"
+DST_DEFAULT_MODS_DIR="/opt/dst-default-mods"
+DST_PRESET_DIR="/opt/dst-preset"
+CONFIG_TEMPLATE_DIR="/opt/dst-config-templates"
+
+USER_MODS_DIR="${DST_DATA_DIR}/user-mods"
+KLEI_DIR="${DST_DATA_DIR}/DoNotStarveTogether"
+CLUSTER_DIR="${KLEI_DIR}/${DST_CLUSTER}"
+SHARD_DIR="${CLUSTER_DIR}/${DST_SHARD}"
+
+PRESET_MODS_FILE="${DST_PRESET_DIR}/mods.lua"
+EXTRA_MODS_FILE="${USER_MODS_DIR}/extra_mods.lua"
+FINAL_MODS_FILE="${DST_MODS_DIR}/dedicated_server_mods_setup.lua"
+
+PRESET_OVERRIDES_FILE="${DST_PRESET_DIR}/${DST_SHARD}/modoverrides.lua"
+EXTRA_OVERRIDES_FILE="${USER_MODS_DIR}/${DST_SHARD}/extra_modoverrides.lua"
+FINAL_OVERRIDES_FILE="${SHARD_DIR}/modoverrides.lua"
+
+case "${DST_SHARD}" in
+  Master|Caves) ;;
+  *)
+    echo "ERROR: unsupported DST shard: ${DST_SHARD}" >&2
+    echo "Expected Master or Caves." >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p \
+  "${DST_MODS_DIR}" \
+  "${USER_MODS_DIR}/Master" \
+  "${USER_MODS_DIR}/Caves" \
+  "${CLUSTER_DIR}/Master" \
+  "${CLUSTER_DIR}/Caves"
+
+# 只初始化缺失的配置，保留用户已有内容。
+if [ ! -f "${CLUSTER_DIR}/cluster.ini" ]; then
+  cp "${CONFIG_TEMPLATE_DIR}/cluster.ini" "${CLUSTER_DIR}/cluster.ini"
+fi
+
+if [ ! -f "${CLUSTER_DIR}/Master/server.ini" ]; then
+  cp "${CONFIG_TEMPLATE_DIR}/Master/server.ini" "${CLUSTER_DIR}/Master/server.ini"
+fi
+
+if [ ! -f "${CLUSTER_DIR}/Caves/server.ini" ]; then
+  cp "${CONFIG_TEMPLATE_DIR}/Caves/server.ini" "${CLUSTER_DIR}/Caves/server.ini"
+fi
+
+if [ ! -s "${CLUSTER_DIR}/cluster_token.txt" ] \
+  || ! grep -q '[^[:space:]]' "${CLUSTER_DIR}/cluster_token.txt"; then
+  echo "ERROR: missing or empty DST cluster token." >&2
+  echo >&2
+  echo "Expected file:" >&2
+  echo "  ${CLUSTER_DIR}/cluster_token.txt" >&2
+  echo >&2
+  echo "Create a DST cluster token and place it in the mounted data directory." >&2
+  exit 1
+fi
+
+# 空 volume 会遮蔽镜像中的 mods 目录，需要先恢复服务端原始文件。
+if [ ! -f "${DST_MODS_DIR}/modsettings.lua" ]; then
+  cp -a "${DST_DEFAULT_MODS_DIR}/." "${DST_MODS_DIR}/"
+fi
+
+if [ -f "${EXTRA_MODS_FILE}" ]; then
+  cat "${PRESET_MODS_FILE}" "${EXTRA_MODS_FILE}" > "${FINAL_MODS_FILE}"
+else
+  cp "${PRESET_MODS_FILE}" "${FINAL_MODS_FILE}"
+fi
+
+if [ -f "${EXTRA_OVERRIDES_FILE}" ]; then
+  lua5.4 /usr/local/bin/merge-modoverrides.lua \
+    "${PRESET_OVERRIDES_FILE}" \
+    "${EXTRA_OVERRIDES_FILE}" \
+    > "${FINAL_OVERRIDES_FILE}"
+else
+  cp "${PRESET_OVERRIDES_FILE}" "${FINAL_OVERRIDES_FILE}"
+fi
+
+cd "${DST_DIR}/bin"
+
+exec ./dontstarve_dedicated_server_nullrenderer \
+  -console \
+  -cluster "${DST_CLUSTER}" \
+  -shard "${DST_SHARD}" \
+  -persistent_storage_root "${DST_DATA_DIR}" \
+  -conf_dir DoNotStarveTogether

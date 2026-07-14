@@ -1,0 +1,13 @@
+.git
+.gitignore
+AGENTS.md
+data
+README.md
+
+.env
+.env.*
+*.log
+*.tar
+*.tar.gz
+*.tgz
+*.zip
