@@ -1,0 +1,87 @@
+#!/bin/sh
+# 构建阶段下载 DST Dedicated Server。
+#
+# 从国内访问 Steam 后端不稳定：SteamCMD 启动时需要通过
+# https://api.steampowered.com/ISteamDirectory/GetCMListForConnect
+# 获取 CM 服务器列表。一旦该请求失败（超时/丢包），SteamCMD 会回退到内置的
+# 美国 CM，并长时间卡在 "Connecting anonymously to Steam Public... Retrying..."。
+#
+# 因此这里：
+#   1. 每次尝试前先等待 Steam Web API 可达；
+#   2. 对 steamcmd 设置单次超时，超时后清理残留进程并重试。
+set -eu
+
+: "${STEAMCMD_DIR:?STEAMCMD_DIR is required}"
+: "${DST_DIR:?DST_DIR is required}"
+: "${DST_APP_ID:?DST_APP_ID is required}"
+
+attempts="${STEAMCMD_ATTEMPTS:-5}"
+delay="${STEAMCMD_RETRY_DELAY:-10}"
+attempt_timeout="${STEAMCMD_TIMEOUT:-1800}"
+api_wait="${STEAMCMD_API_WAIT:-600}"
+api_check_timeout="${STEAMCMD_API_CHECK_TIMEOUT:-15}"
+
+# SteamCMD 使用的同一个接口，用来判断 Steam 后端是否可达。
+check_steam_api() {
+  command -v curl >/dev/null 2>&1 || return 0
+  curl -fsS -m "${api_check_timeout}" -o /dev/null \
+    "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1?cellid=0"
+}
+
+wait_for_steam_api() {
+  waited=0
+  while [ "${waited}" -lt "${api_wait}" ]; do
+    if check_steam_api; then
+      return 0
+    fi
+    echo "[install_dst_server] Steam Web API 不可达，${delay}s 后重试（已等待 ${waited}s/${api_wait}s）" >&2
+    sleep "${delay}"
+    waited=$((waited + delay))
+  done
+  return 1
+}
+
+# timeout 只终止直接子进程 steamcmd.sh，实际的 linux32/steamcmd 会被
+# 重新托管到 PID 1 并继续运行，因此这里手动清理，避免影响下一次尝试。
+kill_stale_steamcmd() {
+  for proc in /proc/[0-9]*; do
+    [ -r "${proc}/cmdline" ] || continue
+    if tr '\0' ' ' < "${proc}/cmdline" 2>/dev/null | grep -q 'linux32/steamcmd'; then
+      kill "${proc#/proc/}" 2>/dev/null || true
+    fi
+  done
+}
+
+attempt=1
+while [ "${attempt}" -le "${attempts}" ]; do
+  echo "[install_dst_server] attempt ${attempt}/${attempts}: app ${DST_APP_ID}" >&2
+
+  if wait_for_steam_api; then
+    status=0
+    timeout "${attempt_timeout}" "${STEAMCMD_DIR}/steamcmd.sh" \
+        +force_install_dir "${DST_DIR}" \
+        +login anonymous \
+        +app_info_update 1 \
+        +app_update "${DST_APP_ID}" validate \
+        +quit || status=$?
+
+    if [ "${status}" -eq 0 ]; then
+      echo "[install_dst_server] success" >&2
+      exit 0
+    fi
+  else
+    echo "[install_dst_server] Steam Web API 持续不可达，跳过本次 steamcmd" >&2
+    status=1
+  fi
+
+  echo "[install_dst_server] attempt ${attempt}/${attempts} failed (exit ${status})" >&2
+  kill_stale_steamcmd
+
+  attempt=$((attempt + 1))
+  if [ "${attempt}" -le "${attempts}" ]; then
+    sleep "${delay}"
+  fi
+done
+
+echo "[install_dst_server] failed after ${attempts} attempts" >&2
+exit 1

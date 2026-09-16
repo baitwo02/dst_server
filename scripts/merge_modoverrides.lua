@@ -4,7 +4,7 @@ local preset_path = arg[1]
 local extra_path = arg[2]
 
 if not preset_path or not extra_path then
-  io.stderr:write("usage: merge-modoverrides.lua <preset.lua> <extra.lua>\n")
+  io.stderr:write("usage: merge_modoverrides.lua <preset.lua> <extra.lua>\n")
   os.exit(1)
 end
 

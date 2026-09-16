@@ -5,13 +5,15 @@ DST_DIR="${DST_DIR:-/opt/dst}"
 DST_DATA_DIR="${DST_DATA_DIR:-/data}"
 DST_CLUSTER="${DST_CLUSTER:-Cluster_1}"
 DST_SHARD="${DST_SHARD:-Master}"
+# DST_MODS_ONLY=1：只下载/更新 Workshop mod，完成后退出，不启动服务端。
+DST_MODS_ONLY="${DST_MODS_ONLY:-0}"
 
 DST_MODS_DIR="${DST_DIR}/mods"
-DST_DEFAULT_MODS_DIR="/opt/dst-default-mods"
-DST_PRESET_DIR="/opt/dst-preset"
-CONFIG_TEMPLATE_DIR="/opt/dst-config-templates"
+DST_DEFAULT_MODS_DIR="/opt/dst_default_mods"
+DST_PRESET_DIR="/opt/dst_preset"
+CONFIG_TEMPLATE_DIR="/opt/dst_config_templates"
 
-USER_MODS_DIR="${DST_DATA_DIR}/user-mods"
+USER_MODS_DIR="${DST_DATA_DIR}/user_mods"
 KLEI_DIR="${DST_DATA_DIR}/DoNotStarveTogether"
 CLUSTER_DIR="${KLEI_DIR}/${DST_CLUSTER}"
 SHARD_DIR="${CLUSTER_DIR}/${DST_SHARD}"
@@ -33,16 +35,43 @@ case "${DST_SHARD}" in
     ;;
 esac
 
-for preset_file in "${PRESET_MODS_FILE}" "${PRESET_OVERRIDES_FILE}"; do
-  if [ ! -f "${preset_file}" ]; then
-    echo "ERROR: missing preset file: ${preset_file}" >&2
-    echo "Mount the host preset directory at ${DST_PRESET_DIR}." >&2
-    exit 1
-  fi
-done
+if [ ! -f "${PRESET_MODS_FILE}" ]; then
+  echo "ERROR: missing preset file: ${PRESET_MODS_FILE}" >&2
+  echo "Mount the host preset directory at ${DST_PRESET_DIR}." >&2
+  exit 1
+fi
+
+# 空 volume 会遮蔽镜像中的 mods 目录，需要先恢复服务端原始文件。
+mkdir -p "${DST_MODS_DIR}"
+if [ ! -f "${DST_MODS_DIR}/modsettings.lua" ]; then
+  cp -a "${DST_DEFAULT_MODS_DIR}/." "${DST_MODS_DIR}/"
+fi
+
+# 生成 Workshop 下载列表：发行版 preset 拼接可选的用户 extra 文件。
+if [ -f "${EXTRA_MODS_FILE}" ]; then
+  cat "${PRESET_MODS_FILE}" "${EXTRA_MODS_FILE}" > "${FINAL_MODS_FILE}"
+else
+  cp "${PRESET_MODS_FILE}" "${FINAL_MODS_FILE}"
+fi
+
+# 只更新 mod：下载完成后服务端会自行退出。
+if [ "${DST_MODS_ONLY}" = "1" ]; then
+  cd "${DST_DIR}/bin"
+  exec ./dontstarve_dedicated_server_nullrenderer \
+    -console \
+    -only_update_server_mods \
+    -cluster "${DST_CLUSTER}" \
+    -shard "${DST_SHARD}"
+fi
+
+# ---- 正常启动流程 ----
+if [ ! -f "${PRESET_OVERRIDES_FILE}" ]; then
+  echo "ERROR: missing preset file: ${PRESET_OVERRIDES_FILE}" >&2
+  echo "Mount the host preset directory at ${DST_PRESET_DIR}." >&2
+  exit 1
+fi
 
 mkdir -p \
-  "${DST_MODS_DIR}" \
   "${USER_MODS_DIR}/Master" \
   "${USER_MODS_DIR}/Caves" \
   "${CLUSTER_DIR}/Master" \
@@ -61,6 +90,11 @@ if [ ! -f "${CLUSTER_DIR}/Caves/server.ini" ]; then
   cp "${CONFIG_TEMPLATE_DIR}/Caves/server.ini" "${CLUSTER_DIR}/Caves/server.ini"
 fi
 
+# 世界生成覆盖：仅在世界生成时生效，不覆盖用户已有配置。
+if [ ! -f "${SHARD_DIR}/worldgenoverride.lua" ]; then
+  cp "${CONFIG_TEMPLATE_DIR}/${DST_SHARD}/worldgenoverride.lua" "${SHARD_DIR}/worldgenoverride.lua"
+fi
+
 if [ ! -s "${CLUSTER_DIR}/cluster_token.txt" ] \
   || ! grep -q '[^[:space:]]' "${CLUSTER_DIR}/cluster_token.txt"; then
   echo "ERROR: missing or empty DST cluster token." >&2
@@ -72,19 +106,8 @@ if [ ! -s "${CLUSTER_DIR}/cluster_token.txt" ] \
   exit 1
 fi
 
-# 空 volume 会遮蔽镜像中的 mods 目录，需要先恢复服务端原始文件。
-if [ ! -f "${DST_MODS_DIR}/modsettings.lua" ]; then
-  cp -a "${DST_DEFAULT_MODS_DIR}/." "${DST_MODS_DIR}/"
-fi
-
-if [ -f "${EXTRA_MODS_FILE}" ]; then
-  cat "${PRESET_MODS_FILE}" "${EXTRA_MODS_FILE}" > "${FINAL_MODS_FILE}"
-else
-  cp "${PRESET_MODS_FILE}" "${FINAL_MODS_FILE}"
-fi
-
 if [ -f "${EXTRA_OVERRIDES_FILE}" ]; then
-  lua5.4 /usr/local/bin/merge-modoverrides.lua \
+  lua5.4 /usr/local/bin/merge_modoverrides.lua \
     "${PRESET_OVERRIDES_FILE}" \
     "${EXTRA_OVERRIDES_FILE}" \
     > "${FINAL_OVERRIDES_FILE}"
